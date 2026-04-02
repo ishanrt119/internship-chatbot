@@ -61,10 +61,12 @@ def generate_chat_response(messages, resume_data, top_jobs):
             system_prompt += f"The user has the following skills: {skills}. "
             
     if top_jobs:
-        jobs_str = ", ".join([f"{j['title']} at {j['company']} ({j.get('match_score', 0)}% match)" for j in top_jobs[:3]])
-        system_prompt += f"You have found the following top roles for them: {jobs_str}. "
+        jobs_str = " | ".join([f"[{j['title']} at {j['company']}] Location: {j.get('location', 'N/A')}, Stipend: {j.get('stipend', 'N/A')}, Apply Link: {j.get('apply_link', 'N/A')}" for j in top_jobs[:5]])
+        system_prompt += f"You have fetched these REAL, currently active internships: {jobs_str}. When suggesting or discussing roles, ALWAYS provide the exact 'Apply Link' back to the user and mention they are active taking applications. Do not make up fake job links. "
+    else:
+        system_prompt += "You currently do NOT have any scraped jobs in context. If the user asks for jobs, politely instruct them to open the '⚙️ Settings' panel in the top right, update their Job Search Preferences (Role, Location), and click 'Search Internships' to load real active applications into your context. Do NOT hallucinate jobs."
         
-    system_prompt += "Answer user queries concisely and helpfully. Do not make up fake job links."
+    system_prompt += "Answer user queries concisely and helpfully."
         
     api_messages = [{"role": "system", "content": system_prompt}]
     
