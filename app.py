@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import re
 import json
+import uuid
 from dotenv import load_dotenv
 
 from resume_parser import extract_text_from_pdf, parse_resume
@@ -27,18 +28,108 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+CHATS_FILE = "chats.json"
+
+def load_chats():
+    if os.path.exists(CHATS_FILE):
+        try:
+            with open(CHATS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_chats():
+    if "chats" in st.session_state:
+        with open(CHATS_FILE, "w") as f:
+            json.dump(st.session_state.chats, f)
+
+def sync_current_chat():
+    if "current_chat_id" in st.session_state and "chats" in st.session_state:
+        curr_id = st.session_state.current_chat_id
+        if curr_id in st.session_state.chats:
+            curr = st.session_state.chats[curr_id]
+            curr["messages"] = list(st.session_state.get("messages", []))
+            curr["resume_data"] = st.session_state.get("resume_data", None)
+            curr["top_jobs"] = list(st.session_state.get("top_jobs", []))
+            
+            if curr.get("title", "New Chat") == "New Chat" and len(curr["messages"]) > 0:
+                for m in curr["messages"]:
+                    if m.get("role") == "user" and not m.get("content", "").startswith("Uploaded resume:"):
+                        content = m.get("content", "")
+                        curr["title"] = content[:30] + ("..." if len(content) > 30 else "")
+                        break
+            save_chats()
+
 def initialize_session():
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "resume_data" not in st.session_state:
-        st.session_state.resume_data = None
-    if "top_jobs" not in st.session_state:
-        st.session_state.top_jobs = []
+    if "chats" not in st.session_state:
+        st.session_state.chats = load_chats()
+        
+    if "current_chat_id" not in st.session_state:
+        if st.session_state.chats:
+            st.session_state.current_chat_id = list(st.session_state.chats.keys())[-1]
+        else:
+            new_id = str(uuid.uuid4())
+            st.session_state.chats[new_id] = {
+                "id": new_id,
+                "title": "New Chat",
+                "messages": [],
+                "resume_data": None,
+                "top_jobs": []
+            }
+            st.session_state.current_chat_id = new_id
+            save_chats()
+
+    curr_id = st.session_state.current_chat_id
+    if curr_id not in st.session_state.chats:
+        st.session_state.chats[curr_id] = {
+            "id": curr_id,
+            "title": "New Chat",
+            "messages": [],
+            "resume_data": None,
+            "top_jobs": []
+        }
+        
+    curr = st.session_state.chats[curr_id]
+    
+    if "messages" not in st.session_state or getattr(st.session_state, "_last_chat_id", None) != curr_id:
+        st.session_state.messages = list(curr.get("messages", []))
+        st.session_state.resume_data = curr.get("resume_data", None)
+        st.session_state.top_jobs = list(curr.get("top_jobs", []))
+        st.session_state._last_chat_id = curr_id
 
 initialize_session()
 
-# --- SIDEBAR (Current Profile) ---
+# --- SIDEBAR ---
 with st.sidebar:
+    st.title("💬 Chat History")
+    if st.button("➕ New Chat", use_container_width=True):
+        new_id = str(uuid.uuid4())
+        st.session_state.chats[new_id] = {
+            "id": new_id,
+            "title": "New Chat",
+            "messages": [],
+            "resume_data": None,
+            "top_jobs": []
+        }
+        sync_current_chat()
+        st.session_state.current_chat_id = new_id
+        save_chats()
+        st.rerun()
+        
+    st.divider()
+    
+    for chat_id, chat_data in reversed(list(st.session_state.chats.items())):
+        title = chat_data.get("title", "New Chat")
+        if chat_id == st.session_state.current_chat_id:
+            st.button(f"👉 {title}", key=f"btn_{chat_id}", use_container_width=True, disabled=True)
+        else:
+            if st.button(title, key=f"btn_{chat_id}", use_container_width=True):
+                sync_current_chat()
+                st.session_state.current_chat_id = chat_id
+                st.rerun()
+
+    st.divider()
     st.title("👤 Your Profile")
     st.divider()
     if st.session_state.resume_data:
@@ -152,6 +243,7 @@ if prompt:
                                 else:
                                     error_msg = f"Sorry, I couldn't find any jobs matching your criteria."
                                     st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                                sync_current_chat()
                                 st.rerun()
                         except json.JSONDecodeError:
                             clean_response = response.replace(search_match.group(0), "").strip()
@@ -164,4 +256,7 @@ if prompt:
                     
     elif files_processed:
         # If files were processed but no text was submitted, we should still refresh the UI to show the new assistant message
+        sync_current_chat()
         st.rerun()
+
+sync_current_chat()
