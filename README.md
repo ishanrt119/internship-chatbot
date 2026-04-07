@@ -1,21 +1,21 @@
 # 🎓 Internship Copilot
 
-Internship Copilot is an AI-powered internship recommendation and career chatbot. It utilizes advanced Natural Language Processing (NLP) to parse your resume, scrape real-time job listings, and match your skillset with top opportunities. All while letting you converse with a personalized career advisor directly within a clean, ChatGPT-like interface!
+Internship Copilot is an AI-powered internship recommendation and career chatbot. It utilizes advanced Natural Language Processing (NLP) to parse your resume, scrape real-time job listings, and match your skillset with top opportunities. All while letting you converse with a personalized career advisor directly within a clean, wide-layout ChatGPT-like interface!
 
 ## 🌟 Features
 
-- **Resume Parsing Engine**: Upload your PDF resume directly into the chat. The app extracts text and maps your skillset instantly using PyMuPDF and SpaCy models.
-- **Dynamic Job Scraping**: Automatically fetches live internship data across domains directly from real portals (e.g. Internshala).
-- **Match Scoring**: Analyzes your resume against job descriptions using TF-IDF matching algorithms (via Scikit-Learn) to show exactly how aligned you are for specific roles.
+- **Resume Parsing Engine**: Upload your PDF resume directly into the chat. The app extracts text and pins your skillset and technical profile instantly to a dedicated side panel using PyMuPDF and SpaCy models.
+- **Autonomous Job Scraping**: No manual forms required! Just ask the chatbot to find jobs for you (e.g., "Find remote backend internships"). It autonomously generates search parameters, fetches live internship data, and returns the matches directly into your conversation.
+- **Match Scoring**: Analyzes your parsed resume against active job descriptions using TF-IDF matching algorithms (via Scikit-Learn) to intuitively rank opportunities based on how aligned you are.
 - **AI Career Expert**: Ask any interview, skill, or resume-related queries! Integrated with the Groq API for lightning fast conversational intelligence.
-- **Sleek UI**: Focus solely on the conversation with a clean, centralized chat layout featuring inline file attachments—replicating the premium feel of modern tools like ChatGPT.
+- **Sleek UI**: Experience a dynamic layout featuring custom styling, badge components, context-aware avatars, and a dedicated profile sidebar.
 
 ## 🛠️ Technology Stack
 
 - **Frontend**: Streamlit
 - **Web Scraping**: BeautifulSoup4, Requests
 - **NLP / AI**: Groq API, SpaCy, Scikit-Learn
-- **PDF Processing**: PyMuPDF (`fitz`)
+- **PDF Processing**: PyMuPDF (`pymupdf`)
 - **Python**: 3.10+ recommended
 
 ## 🚀 Setup & Installation
@@ -37,7 +37,7 @@ Internship Copilot is an AI-powered internship recommendation and career chatbot
 
 3. **Install Dependencies:**
    ```bash
-   pip install streamlit python-dotenv pymupdf spacy scikit-learn groq beautifulsoup4 requests
+   pip install -r requirements.txt
    ```
 
 4. **Install the SpaCy language model:**
@@ -46,11 +46,11 @@ Internship Copilot is an AI-powered internship recommendation and career chatbot
    ```
 
 5. **Configure your API Key:**
-   Create a `.env` file in the root directory and add your Groq API Key:
+   Create a `.env` file in the root directory and securely add your Groq API Key:
    ```env
    GROQ_API_KEY=your_actual_groq_api_key_here
    ```
-   *Alternatively, you can provide your API key via the "⚙️ Settings" popover within the app after running it.*
+   *(Note: The API key is securely loaded from this file and is never exposed in the UI.)*
 
 ## 🎮 Usage
 
@@ -59,9 +59,9 @@ Run the Streamlit app locally:
 streamlit run app.py
 ```
 
-- **Uploading Resumes:** Click the internal attachment clip button inside the chat text box to upload your PDF resume.
-- **Settings:** Adjust your target job roles, minimum stipend, and API settings by clicking the "⚙️ Settings" button near the top right of the application.
-- **Chat:** Just ask! "What skills am I missing for Machine Learning roles?" or "Can you explain why the top match is good for me?"
+- **Uploading Resumes:** Click the `📎` attachment clip button inside the chat text box to upload your PDF resume. Your extracted profile will appear in the left sidebar!
+- **Autonomous Search:** Simply ask the chatbot what you're looking for (e.g., "Find me a Machine Learning internship"). It will automatically figure out the parameters, scrape portals, and match you!
+- **Career Advice:** Ask the copilot anything! For example: "What skills am I missing for these roles?" or "Can you explain why the top match is good for me?"
 
 ## 📝 License
 
