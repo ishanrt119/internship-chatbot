@@ -1,0 +1,8 @@
+streamlit
+python-dotenv
+pymupdf
+spacy
+scikit-learn
+groq
+beautifulsoup4
+requests
