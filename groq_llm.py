@@ -61,15 +61,15 @@ def generate_chat_response(messages, resume_data, top_jobs):
             system_prompt += f"The user has the following skills: {skills}. "
             
     if top_jobs:
-        jobs_str = " | ".join([f"[{j['title']} at {j['company']}] Location: {j.get('location', 'N/A')}, Stipend: {j.get('stipend', 'N/A')}, Apply Link: {j.get('apply_link', 'N/A')}" for j in top_jobs[:5]])
+        jobs_str = " | ".join([f"[{j['title']} at {j['company']}] Location: {j.get('location', 'N/A')}, Apply Link: {j.get('apply_link', 'N/A')}" for j in top_jobs[:5]])
         system_prompt += f"You have fetched these REAL, currently active internships: {jobs_str}. When suggesting or discussing roles, ALWAYS provide the exact 'Apply Link' back to the user and mention they are active taking applications. Do not make up fake job links. "
     
     system_prompt += """
-If the user asks you to search for internships or jobs (or if they imply they want you to find jobs), you MUST generate a search command in the following format AT THE VERY END of your response:
+If the user asks you to search for new internships or jobs, you MUST generate a search command in the following format AT THE VERY END of your response:
 <SEARCH>
-{"role": "desired role like Software Engineer", "location": "desired location", "remote": true, "min_stipend": "1000"}
+{"role": "desired role like Software Engineer", "location": "desired location", "remote": true}
 </SEARCH>
-Only output this <SEARCH> block if you need to fetch jobs from the internet right now. Do not hallucinate jobs without searching.
+CRITICAL: Only output the <SEARCH> block if you need to fetch NOVEL jobs from the internet right now. If jobs have ALREADY been fetched and are in your context, and the user asks to "list", "show", or "tell me about them", DO NOT generate a <SEARCH> block. Instead, list the fetched jobs directly to the user.
 """
         
     system_prompt += "Answer user queries concisely and helpfully."

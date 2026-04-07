@@ -1,86 +1,90 @@
+import os
 import requests
-from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
-def scrape_internshala(role, location=""):
-    jobs = []
-    keyword = role.replace(" ", "-").lower()
-    url = f"https://internshala.com/internships/keywords-{keyword}/"
+load_dotenv()
+
+def get_jobs(role, location="", remote=False):
+    api_key = os.getenv("SERP_API_KEY")
+    
+    # Construct a search query based on the parameters
+    query_parts = [role, "internship"]
     if location:
-        loc = location.replace(" ", "-").lower()
-        url = f"https://internshala.com/internships/{loc}-internship/keywords-{keyword}/"
+        query_parts.append(location)
+    if remote:
+        query_parts.append("remote")
         
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
+    query = " ".join(query_parts)
+    
+    jobs = []
+    
+    # If no API key is provided, gracefully inform the UI
+    if not api_key:
+        print("SERP_API_KEY not found in environment. Please add it to your .env file.")
+        return [
+            {
+                "title": f"Action Required: Add SERP_API_KEY",
+                "company": "System",
+                "location": location if location else "Unknown",
+                "apply_link": "https://serpapi.com/",
+                "description": "Please add your SERP_API_KEY to the .env file to fetch real Google Jobs results.",
+                "skills_required": [role]
+            }
+        ]
+
+    params = {
+        "engine": "google_jobs",
+        "q": query,
+        "api_key": api_key,
+        "hl": "en",
+        "gl": "us", # default geolocation
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get("https://serpapi.com/search.json", params=params, timeout=15)
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            # Look for internship containers
-            postings = soup.find_all("div", class_="container-fluid individual_internship")
+            data = response.json()
+            jobs_results = data.get("jobs_results", [])
             
-            for post in postings[:10]: # take top 10
-                title_elem = post.find("h3", class_="heading_4_5 profile")
-                company_elem = post.find("div", class_="heading_6 company_name")
-                loc_elem = post.find("a", class_="location_link")
-                stipend_elem = post.find("span", class_="stipend")
-                apply_link_elem = title_elem.find("a") if title_elem else None
+            for result in jobs_results[:10]: # Limit to top 10 results
+                title = result.get("title", f"{role} Internship")
+                snippet = result.get("description", "No description provided.")
+                # Truncate overly long descriptions
+                if len(snippet) > 200:
+                    snippet = snippet[:200] + "..."
                 
-                title = title_elem.text.strip() if title_elem else "Unknown Role"
-                company = company_elem.text.strip() if company_elem else "Unknown Company"
-                loc = loc_elem.text.strip() if loc_elem else "Unknown Location"
-                stipend = stipend_elem.text.strip() if stipend_elem else "Unpaid/Unknown"
-                apply_link = "https://internshala.com" + apply_link_elem["href"] if apply_link_elem else url
+                # Fetch exact company
+                company_name = result.get("company_name", "Unknown Company")
+                job_location = result.get("location", location or "Various")
                 
-                description = f"Internship opportunity for {title} at {company}. Based in {loc}. Offering: {stipend}."
+                # Get direct apply link if available
+                apply_link = "#"
+                if result.get("apply_options"):
+                    apply_link = result["apply_options"][0].get("link", "#")
+                elif result.get("share_link"):
+                    apply_link = result.get("share_link")
                 
                 jobs.append({
                     "title": title,
-                    "company": company,
-                    "location": loc,
-                    "stipend": stipend,
+                    "company": company_name,
+                    "location": job_location,
                     "apply_link": apply_link,
-                    "description": description,
+                    "description": snippet,
                     "skills_required": [role]
                 })
+        else:
+            print(f"SerpAPI Error: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"Error scraping Internshala: {e}")
+        print(f"Exception while connecting to SerpAPI: {e}")
         
-    return jobs
-
-def get_jobs(role, location="", remote=False, min_stipend=""):
-    jobs = scrape_internshala(role, location)
-    
-    # Fallback to dummy data if scrape fails / captcha blocks us
     if not jobs:
-        jobs = [
-            {
-                "title": f"{role} Intern",
-                "company": "TechNova Solutions",
-                "location": "Remote" if remote else (location or "New York, NY"),
-                "stipend": min_stipend if min_stipend else "$1000/month",
-                "apply_link": "https://example.com/apply1",
-                "description": f"Join our forward-thinking team as a {role} Intern. You will work alongside senior developers to build scalable features and improve system architecture.",
-                "skills_required": ["Python", "SQL"] if "data" in role.lower() else ["Javascript", "React"]
-            },
-            {
-                "title": f"Junior {role} ",
-                "company": "Apex Innovations",
-                "location": "Remote" if remote else (location or "San Francisco, CA"),
-                "stipend": min_stipend if min_stipend else "$1500/month",
-                "apply_link": "https://example.com/apply2",
-                "description": f"Exciting opportunity for a {role} enthusiast to assist in our core product development. Ideal candidate must be a fast learner.",
-                "skills_required": [role, "Teamwork"]
-            },
-            {
-                "title": f"{role} Development Intern",
-                "company": "Global Systems Inc",
-                "location": "On-site" if not remote else "Remote",
-                "stipend": "Unpaid",
-                "apply_link": "https://example.com/apply3",
-                "description": f"Learn the ropes of {role} in a fast-paced environment. Mentorship provided by industry veterans.",
-                "skills_required": ["Communication", "Problem Solving"]
-            }
-        ]
+        jobs.append({
+            "title": "No Internships Found",
+            "company": "N/A",
+            "location": location if location else "N/A",
+            "apply_link": "#",
+            "description": "We couldn't find any recent postings matching your exact criteria using the Google Jobs API.",
+            "skills_required": []
+        })
+
     return jobs

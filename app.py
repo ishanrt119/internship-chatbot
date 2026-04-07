@@ -224,13 +224,12 @@ if prompt:
                             role = search_params.get("role", "Software Engineer")
                             location = search_params.get("location", "")
                             remote_only = search_params.get("remote", True)
-                            min_stipend = search_params.get("min_stipend", "")
                             
                             st.session_state.messages.append({"role": "assistant", "content": "I am searching for internships based on your request..."})
                             message_placeholder.markdown("I am searching for internships based on your request...")
                             
                             with st.spinner(f"Scraping jobs for {role}..."):
-                                jobs = get_jobs(role, location=location if not remote_only else "", remote=remote_only, min_stipend=min_stipend)
+                                jobs = get_jobs(role, location=location if not remote_only else "", remote=remote_only)
                                 if jobs:
                                     if st.session_state.resume_data:
                                         ranked_jobs = calculate_match_scores(st.session_state.resume_data, jobs)
