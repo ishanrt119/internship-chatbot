@@ -51,7 +51,7 @@ def generate_job_explanation(resume_data, job):
 def generate_chat_response(messages, resume_data, top_jobs):
     client = get_groq_client()
     if not client:
-        return "Please set your Groq API key in the sidebar or .env file to chat."
+        return "Please set your Groq API key in the .env file to chat."
         
     system_prompt = "You are an expert internship matching AI assistant. "
     
@@ -63,8 +63,14 @@ def generate_chat_response(messages, resume_data, top_jobs):
     if top_jobs:
         jobs_str = " | ".join([f"[{j['title']} at {j['company']}] Location: {j.get('location', 'N/A')}, Stipend: {j.get('stipend', 'N/A')}, Apply Link: {j.get('apply_link', 'N/A')}" for j in top_jobs[:5]])
         system_prompt += f"You have fetched these REAL, currently active internships: {jobs_str}. When suggesting or discussing roles, ALWAYS provide the exact 'Apply Link' back to the user and mention they are active taking applications. Do not make up fake job links. "
-    else:
-        system_prompt += "You currently do NOT have any scraped jobs in context. If the user asks for jobs, politely instruct them to open the '⚙️ Settings' panel in the top right, update their Job Search Preferences (Role, Location), and click 'Search Internships' to load real active applications into your context. Do NOT hallucinate jobs."
+    
+    system_prompt += """
+If the user asks you to search for internships or jobs (or if they imply they want you to find jobs), you MUST generate a search command in the following format AT THE VERY END of your response:
+<SEARCH>
+{"role": "desired role like Software Engineer", "location": "desired location", "remote": true, "min_stipend": "1000"}
+</SEARCH>
+Only output this <SEARCH> block if you need to fetch jobs from the internet right now. Do not hallucinate jobs without searching.
+"""
         
     system_prompt += "Answer user queries concisely and helpfully."
         

@@ -1,5 +1,7 @@
 import streamlit as st
 import os
+import re
+import json
 from dotenv import load_dotenv
 
 from resume_parser import extract_text_from_pdf, parse_resume
@@ -9,7 +11,21 @@ from groq_llm import generate_job_explanation, generate_chat_response
 
 load_dotenv()
 
-st.set_page_config(page_title="Internship Copilot", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="Internship Copilot", page_icon="🎓", layout="wide")
+
+st.markdown("""
+<style>
+    .skill-badge {
+        display: inline-block;
+        padding: 5px 12px;
+        margin: 4px;
+        background-color: rgba(120, 120, 150, 0.2);
+        border-radius: 16px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 def initialize_session():
     if "messages" not in st.session_state:
@@ -18,43 +34,40 @@ def initialize_session():
         st.session_state.resume_data = None
     if "top_jobs" not in st.session_state:
         st.session_state.top_jobs = []
-    if "api_key" not in st.session_state:
-        st.session_state.api_key = os.environ.get("GROQ_API_KEY", "")
 
 initialize_session()
 
-# --- TOP NAVIGATION / SETTINGS ---
-# We use a popover to hide the settings, simulating a clean ChatGPT-like UI
-col1, col2 = st.columns([8, 2])
-with col2:
-    with st.popover("⚙️ Settings"):
-        st.markdown("**Configuration**")
-        api_key_input = st.text_input("Groq API Key", value=st.session_state.api_key, type="password")
-        if api_key_input:
-            st.session_state.api_key = api_key_input
-            os.environ["GROQ_API_KEY"] = api_key_input
-        
-        st.divider()
-        st.markdown("**Job Search Preferences**")
-        role = st.text_input("Preferred Role (e.g. Machine Learning, Web Dev)", "Python Developer")
-        location = st.text_input("Location Preference", "Remote")
-        remote_only = st.checkbox("Remote Only", value=True)
-        min_stipend = st.text_input("Minimum Stipend Expected", "$1000")
-        
-        if st.button("Search Internships"):
-            if not st.session_state.resume_data:
-                st.warning("Please upload a resume in the chat first to get match scores.")
-            else:
-                with st.spinner("Scraping portals and analyzing matches..."):
-                    jobs = get_jobs(role, location=location if not remote_only else "", remote=remote_only, min_stipend=min_stipend)
-                    if jobs:
-                        ranked_jobs = calculate_match_scores(st.session_state.resume_data, jobs)
-                        st.session_state.top_jobs = ranked_jobs[:10]
-                        st.success(f"Found and matched {len(st.session_state.top_jobs)} internships!")
-                        # Add a system message to chat to notify the user
-                        st.session_state.messages.append({"role": "assistant", "content": f"I just found {len(st.session_state.top_jobs)} internship matches based on your preferences! You can ask me to list them or explain why they fit you."})
-                    else:
-                        st.error("No jobs found for the given criteria.")
+# --- SIDEBAR (Current Profile) ---
+with st.sidebar:
+    st.title("👤 Your Profile")
+    st.divider()
+    if st.session_state.resume_data:
+        st.success("Resume Active", icon="📄")
+        st.markdown("### Extracted Skills")
+        skills = st.session_state.resume_data.get('skills', [])
+        if skills:
+            html_skills = "".join([f"<span class='skill-badge'>{s}</span>" for s in skills])
+            st.markdown(html_skills, unsafe_allow_html=True)
+        else:
+            st.info("No technical skills detected.")
+            
+        edu = st.session_state.resume_data.get('education', [])
+        if edu:
+            st.markdown("### Education")
+            for e in edu:
+                st.markdown(f"- {e}")
+                
+        exp = st.session_state.resume_data.get('experience', [])
+        if exp:
+            st.markdown("### Experience")
+            for e in exp:
+                st.markdown(f"- {e}")
+                
+        if st.session_state.top_jobs:
+            st.divider()
+            st.metric("Top Matches Found", len(st.session_state.top_jobs))
+    else:
+        st.info("Upload your resume (PDF) in the chat attachment icon to automatically build your profile and match with jobs!")
 
 # --- CHAT UI ---
 st.title("💬 Career Copilot")
@@ -62,12 +75,13 @@ st.title("💬 Career Copilot")
 chat_container = st.container(height=600)
 
 with chat_container:
-    # Display extracted resume info as a system message if it exists
+    # Show enhanced empty state
     if len(st.session_state.messages) == 0:
-        st.chat_message("assistant").markdown("Hello! I'm your Career Copilot. You can ask me anything, or upload your PDF resume using the attachment icon in the chat input to get started.")
+        st.info("👋 **Welcome to Career Copilot!**\n\nI can help you find your dream internship. Try asking me:\n- *\"Find me remote backend developer internships.\"*\n- *\"What skills do I need for Machine Learning?\"*\n\nOr click the 📎 attachment icon below to upload your resume (PDF) and get personalized job matches!")
 
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
+        avatar = "🎓" if message["role"] == "assistant" else "👤" if message["role"] == "user" else None
+        with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
 
 # Chat input with file upload feature
@@ -100,10 +114,10 @@ if prompt:
         st.session_state.messages.append({"role": "user", "content": user_text})
         
         with chat_container:
-            with st.chat_message("user"):
+            with st.chat_message("user", avatar="👤"):
                 st.markdown(user_text)
                 
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar="🎓"):
                 message_placeholder = st.empty()
                 with st.spinner("Thinking..."):
                     response = generate_chat_response(
@@ -111,8 +125,42 @@ if prompt:
                         st.session_state.resume_data,
                         st.session_state.top_jobs
                     )
-                    message_placeholder.markdown(response)
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    
+                    search_match = re.search(r'<SEARCH>(.*?)</SEARCH>', response, re.DOTALL | re.IGNORECASE)
+                    if search_match:
+                        try:
+                            search_params = json.loads(search_match.group(1).strip())
+                            role = search_params.get("role", "Software Engineer")
+                            location = search_params.get("location", "")
+                            remote_only = search_params.get("remote", True)
+                            min_stipend = search_params.get("min_stipend", "")
+                            
+                            st.session_state.messages.append({"role": "assistant", "content": "I am searching for internships based on your request..."})
+                            message_placeholder.markdown("I am searching for internships based on your request...")
+                            
+                            with st.spinner(f"Scraping jobs for {role}..."):
+                                jobs = get_jobs(role, location=location if not remote_only else "", remote=remote_only, min_stipend=min_stipend)
+                                if jobs:
+                                    if st.session_state.resume_data:
+                                        ranked_jobs = calculate_match_scores(st.session_state.resume_data, jobs)
+                                        st.session_state.top_jobs = ranked_jobs[:10]
+                                    else:
+                                        st.session_state.top_jobs = jobs[:10]
+                                    
+                                    success_msg = f"I just found {len(st.session_state.top_jobs)} internship matches for {role}! You can ask me to list them or explain why they fit you."
+                                    st.session_state.messages.append({"role": "assistant", "content": success_msg})
+                                else:
+                                    error_msg = f"Sorry, I couldn't find any jobs matching your criteria."
+                                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                                st.rerun()
+                        except json.JSONDecodeError:
+                            clean_response = response.replace(search_match.group(0), "").strip()
+                            if clean_response:
+                                message_placeholder.markdown(clean_response)
+                                st.session_state.messages.append({"role": "assistant", "content": clean_response})
+                    else:
+                        message_placeholder.markdown(response)
+                        st.session_state.messages.append({"role": "assistant", "content": response})
                     
     elif files_processed:
         # If files were processed but no text was submitted, we should still refresh the UI to show the new assistant message

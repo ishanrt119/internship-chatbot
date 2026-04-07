@@ -1,4 +1,4 @@
-import fitz # PyMuPDF
+import pymupdf as fitz # Modern PyMuPDF import
 import spacy
 import re
 
